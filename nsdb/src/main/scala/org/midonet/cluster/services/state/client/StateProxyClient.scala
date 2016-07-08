@@ -112,7 +112,7 @@ class StateProxyClient(conf: StateProxyClientConfig,
     private val connectionSubject = BehaviorSubject.create(ConnectionState.Disconnected)
 
     override def connection: Observable[ConnectionState.ConnectionState] = {
-	log.debug(s"$this - connection observable requested")
+	    log.debug(s"$this - connection observable requested")
         connectionSubject
 	}
 

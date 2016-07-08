@@ -301,6 +301,8 @@ trait ScalableStateTable[K, V] extends StateTable[K, V] with StateTableEncoder[K
             if (get().terminated) {
                 throw new IllegalStateException(s"[$tableKey] State closed")
             }
+            Log.debug(s"[$tableKey] - state.Start with proxy='$proxy'")
+            
             proxy.connection.subscribe(proxyConnectionSubscriber)
             connection.subscribe(storageConnectionSubscriber)
             refresh()
