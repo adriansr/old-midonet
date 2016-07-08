@@ -121,6 +121,8 @@ class StateProxyClient(conf: StateProxyClientConfig,
         makeAction1(throwable => log.debug(s"$this - connection onError($throwable)")),
         makeAction0(log.debug(s"$this - connection onCompleted()")))
 
+    log debug s"Started client with debug version 3"
+
     /**
       * Sets the State Proxy client in started mode. It will maintain
       * a connection to the remote server and the associated subscriptions.

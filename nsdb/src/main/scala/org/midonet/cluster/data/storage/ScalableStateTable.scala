@@ -298,11 +298,13 @@ trait ScalableStateTable[K, V] extends StateTable[K, V] with StateTableEncoder[K
           */
         @throws[IllegalStateException]
         def start(): Unit = {
+            Log.debug(s"[$tableKey] - state.start called")
             if (get().terminated) {
+                Log.debug(s"[$tableKey] - state.start terminated exception")
                 throw new IllegalStateException(s"[$tableKey] State closed")
             }
-            Log.debug(s"[$tableKey] - state.Start with proxy='$proxy'")
-            
+
+            Log.debug(s"[$tableKey] - state.start with proxy='$proxy'")
             proxy.connection.subscribe(proxyConnectionSubscriber)
             connection.subscribe(storageConnectionSubscriber)
             refresh()
@@ -1152,7 +1154,13 @@ trait ScalableStateTable[K, V] extends StateTable[K, V] with StateTableEncoder[K
         if (state eq null) {
             Log debug s"[$tableKey] Starting state table"
             state = new State
-            state.start()
+            try {
+                state.start()
+            } catch {
+                case t: Throwable =>
+                    Log error s"[$tableKey] exception caught in start: $t"
+                    throw t
+            }
         }
         state
     }
