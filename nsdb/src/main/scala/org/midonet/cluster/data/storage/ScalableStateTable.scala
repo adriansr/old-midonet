@@ -221,6 +221,7 @@ trait ScalableStateTable[K, V] extends StateTable[K, V] with StateTableEncoder[K
         extends Subscriber[ProxyConnectionState] {
 
         override def onNext(connectionState: ProxyConnectionState): Unit = {
+	    Log.info(s"[$tableKey] onNext Connection state = $connectionState")
             processProxyConnection(state, connectionState)
         }
 

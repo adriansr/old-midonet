@@ -41,7 +41,7 @@ import org.midonet.cluster.services.discovery.{MidonetDiscovery, MidonetServiceH
 import org.midonet.cluster.services.state.StateProxyService
 import org.midonet.cluster.services.state.client.StateTableClient.ConnectionState
 import org.midonet.util.UnixClock
-import org.midonet.util.functors.makeAction0
+import org.midonet.util.functors._
 
 /**
   * A class that manages a set of subscriptions to remote tables using the
@@ -111,8 +111,15 @@ class StateProxyClient(conf: StateProxyClientConfig,
 
     private val connectionSubject = BehaviorSubject.create(ConnectionState.Disconnected)
 
-    override val connection: Observable[ConnectionState.ConnectionState] =
+    override def connection: Observable[ConnectionState.ConnectionState] = {
+	log.debug(s"$this - connection observable requested")
         connectionSubject
+	}
+
+    connection.subscribe(
+        makeAction1(state => log.debug(s"$this - connection onNext(${state.isConnected})")),
+        makeAction1(throwable => log.debug(s"$this - connection onError($throwable)")),
+        makeAction0(log.debug(s"$this - connection onCompleted()")))
 
     /**
       * Sets the State Proxy client in started mode. It will maintain
