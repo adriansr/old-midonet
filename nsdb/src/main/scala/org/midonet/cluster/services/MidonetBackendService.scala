@@ -400,12 +400,14 @@ class MidonetBackendService(config: MidonetBackendConfig,
         ConnectionObservable.create(failFastCurator)
 
     private val stateTables = new StateTableClient {
-        override def stop(): Boolean = false
+
+        override def stop(): Boolean = stateProxyClient.stop()
         override def observable(table: StateSubscriptionKey): Observable[Notify.Update] =
-            Observable.never()
+            stateProxyClient.observable(table)
         override def connection: Observable[StateClientConnectionState] =
-            Observable.never()
-        override def start(): Unit = { }
+            stateProxyClient.connection
+        override def start(): Unit =
+            stateProxyClient.start()
     }
 
     private val zoom =
