@@ -37,9 +37,9 @@ case class StateSubscriptionKey(key: StateTable.Key,
         msg.setObjectId(Commons.UUID.newBuilder()
                             .setMsb(key.objectId.getMostSignificantBits)
                             .setLsb(key.objectId.getLeastSignificantBits))
-            .setObjectClass(key.objectClass.toString)
-            .setKeyClass(key.keyClass.toString)
-            .setValueClass(key.valueClass.toString)
+            .setObjectClass(key.objectClass.getName)
+            .setKeyClass(key.keyClass.getName)
+            .setValueClass(key.valueClass.getName)
             .setTableName(key.name)
             .build()
     }
