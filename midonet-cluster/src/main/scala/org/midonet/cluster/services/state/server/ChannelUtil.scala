@@ -43,5 +43,4 @@ object ChannelUtil {
             promise.future
         }
     }
-
 }
