@@ -30,7 +30,7 @@ import io.netty.channel.Channel
 import org.slf4j.LoggerFactory
 
 import org.midonet.benchmark.Protocol._
-import org.midonet.benchmark.controller.Common._
+import org.midonet.benchmark.Common._
 
 object WorkerManager {
 
@@ -69,7 +69,7 @@ class WorkerManager {
 
     private val clients = MutableMap.empty[WorkerKey, Worker]
 
-    private val currentSession = new AtomicReference[Session]()
+    private val currentSession = new AtomicReference[TestRun]()
     private val requestId = new AtomicLong(0L)
     private val dataCounter = new AtomicInteger(0)
 
@@ -200,7 +200,7 @@ class WorkerManager {
     }
 
     private def bootstrap(rid: RequestId,
-                          session: Session): ControllerMessage = {
+                          session: TestRun): ControllerMessage = {
         val b = Bootstrap.newBuilder()
             .setSessionId(session.id)
         if (session.controller.isDefined) {
@@ -241,7 +241,7 @@ class WorkerManager {
     }
 
     @tailrec
-    final def configure(session: Session): Unit = {
+    final def configure(session: TestRun): Unit = {
         val prev = currentSession.get
         if (currentSession.compareAndSet(prev, session)) {
             dataCounter.set(0)

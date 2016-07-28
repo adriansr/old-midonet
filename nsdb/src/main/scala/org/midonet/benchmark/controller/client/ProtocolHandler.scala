@@ -16,7 +16,7 @@
 package org.midonet.benchmark.controller.client
 
 import org.midonet.benchmark.Protocol._
-import org.midonet.benchmark.controller.Common._
+import org.midonet.benchmark.Common._
 
 sealed trait ProtocolHandler {
 
@@ -75,17 +75,17 @@ class IdleProtocolHandler(requestId: RequestId,
     }
 
     override def onBootstrapReceived(rid: RequestId, msg: Bootstrap): Boolean = {
-        client.become(this, new ReadyProtocolHandler(msg.toSession,client)) &&
-            client.acknowledge(rid)
+        client.become(this, new ReadyProtocolHandler(msg.toTestRun, client)) &&
+        client.acknowledge(rid)
     }
 }
 
-class ReadyProtocolHandler(session: Session,
+class ReadyProtocolHandler(session: TestRun,
                            client: ClientInterface) extends ProtocolHandlerImpl(client) {
 
     override def onBootstrapReceived(rid: RequestId, msg: Bootstrap): Boolean = {
-        client.become(this, new ReadyProtocolHandler(msg.toSession, client)) &&
-            client.acknowledge(rid)
+        client.become(this, new ReadyProtocolHandler(msg.toTestRun, client)) &&
+        client.acknowledge(rid)
     }
 
     override def onStopReceived(rid: RequestId, msg: Stop): Boolean = {
@@ -99,7 +99,7 @@ class ReadyProtocolHandler(session: Session,
     }
 }
 
-class RunningProtocolHandler(session: Session,
+class RunningProtocolHandler(session: TestRun,
                              client: ClientInterface) extends ProtocolHandlerImpl(client) {
 
     override def onStopReceived(rid: RequestId, msg: Stop): Boolean = {

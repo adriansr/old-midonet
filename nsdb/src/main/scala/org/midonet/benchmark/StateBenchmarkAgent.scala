@@ -24,7 +24,7 @@ import io.netty.channel.nio.NioEventLoopGroup
 
 import org.rogach.scallop.ScallopConf
 
-import org.midonet.benchmark.controller.Common._
+import Common._
 import org.midonet.benchmark.controller.client.StateBenchmarkControlClient
 import org.midonet.cluster.services.discovery.MidonetServiceHostAndPort
 
@@ -43,6 +43,7 @@ object StateBenchmarkAgent extends App {
                                                        opts.port.get.get)
     val NumAgents = opts.count.get.get
     val executor = new ScheduledThreadPoolExecutor(NumAgents)
+    val runner = new StateBenchmarkRunner
 
     executor.submit(new Runnable {
         override def run(): Unit = {
@@ -50,7 +51,8 @@ object StateBenchmarkAgent extends App {
                 val NumThreads = 2
 
                 val eventLoopGroup = new NioEventLoopGroup(1)
-                val client = new StateBenchmarkControlClient(controllerAddress,
+                val client = new StateBenchmarkControlClient(runner,
+                                                             controllerAddress,
                                                              executor,
                                                              eventLoopGroup)
                 client.start()

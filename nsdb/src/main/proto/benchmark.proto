@@ -52,6 +52,12 @@ message Bootstrap {
     optional string controller = 2;
     repeated string zookeeper_servers = 3;
     repeated string cluster_servers = 4;
+    optional uint32 duration = 5;
+    optional string table = 6;
+    optional uint32 table_count = 7;
+    optional uint32 entry_count = 8;
+    optional uint32 write_rate = 9;
+    optional string dump_file = 10;
 }
 
 message Acknowledge {

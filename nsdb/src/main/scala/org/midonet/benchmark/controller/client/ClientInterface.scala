@@ -18,13 +18,13 @@ package org.midonet.benchmark.controller.client
 
 import com.typesafe.scalalogging.Logger
 
-import org.midonet.benchmark.controller.Common._
+import org.midonet.benchmark.Common._
 
 trait ClientInterface {
     def logger: Logger
     def become(oldHandler: ProtocolHandler,
                newHandler: ProtocolHandler): Boolean
     def acknowledge(id: RequestId): Boolean
-    def startBenchmark(session: Session): Boolean
+    def startBenchmark(session: TestRun): Boolean
     def stopBenchmark(): Unit
 }

@@ -130,7 +130,7 @@ class MidonetBackendService(config: MidonetBackendConfig,
     override def stateStore: StateStorage = zoom
     override def stateTableStore: StateTableStorage = zoom
 
-    override def stateTableClient: StateTableClient = stateProxyClient
+    override def stateTableClient: StateTableClient = stateTableClientWrapper
 
     protected def setup(stateTableStorage: StateTableStorage): Unit = { }
 

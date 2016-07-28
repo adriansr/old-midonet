@@ -139,7 +139,7 @@ class ZookeeperObjectMapper(override val rootPath: String,
 
     /* Functions and variables to expose metrics using JMX in class
        ZoomMetrics. */
-    implicit protected override val metrics =
+    implicit override val metrics =
         new StorageMetrics(this, metricsRegistry)
 
     metrics.connectionStateListeners.foreach {

@@ -20,7 +20,6 @@ import scala.concurrent.Future
 
 import io.netty.channel.Channel
 
-import org.midonet.benchmark.controller.Common._
 import org.midonet.cluster.rpc.State.ProxyResponse
 
 /**
@@ -29,7 +28,6 @@ import org.midonet.cluster.rpc.State.ProxyResponse
 class ChannelClientHandler(channel: Channel) extends ClientHandler {
 
     import ChannelUtil._
-
 
     /**
       * @see [[ClientHandler.close()]]

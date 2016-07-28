@@ -23,7 +23,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 import org.rogach.scallop.{ScallopConf, ScallopOption}
 
-import org.midonet.benchmark.controller.Common._
+import Common._
 import org.midonet.benchmark.controller.server.{StateBenchmarkControlServer, WorkerManager}
 
 object StateBenchmarkController extends App {
@@ -48,6 +48,22 @@ object StateBenchmarkController extends App {
                                     descr = "Comma-separated list of Zk servers")
         val clusters = opt[String]("clusters", short = 's', default = None,
                                    descr = "Comma-separated list of cluster servers")
+        val duration = opt[Int]("duration", short = 'd', default = Some(601),
+                                descr = "The test duration in seconds")
+        val table = opt[String]("table", short = 't', default = Some("bridge-mac"),
+                                 descr = "The state table class, it can be one of the following: "
+                                          + "bridge-mac, bridge-arp, router-arp, router-peer")
+        val tableCount = opt[Int]("table-count", short = 'm', default = Some(10),
+                                   descr = "The number of tables to which the benchmark writes")
+        val entryCount = opt[Int]("entry-count", short = 'e', default = Some(100),
+                           descr = "The initial number of entries added by the benchmark")
+        val writeRate = opt[Int]("write-rate", short = 'w', default = Some(60),
+                                  descr = "The number of writes per minute to a table.")
+        val dump = opt[String]("dump", short = 'u', default = Some("benchmark-dump.out"),
+                                descr = "The output dump data file.")
+        //val stat = opt[String]("stat", short = 's', default = Some("benchmark-stat.out"),
+        //                       descr = "The output statistics data file.") 
+
         val verbose = opt[Boolean]("verbose", short = 'v', default = Some(false),
                                    descr = "Verbose mode")
     }
@@ -59,10 +75,16 @@ object StateBenchmarkController extends App {
         }
     }
 
-    val session = Session(1,
+    val session = TestRun(1,
                           opts.controller.get,
                           splitopt(opts.zkServers),
-                          splitopt(opts.clusters))
+                          splitopt(opts.clusters),
+                          opts.duration.get,
+                          opts.table.get,
+                          opts.tableCount.get,
+                          opts.entryCount.get,
+                          opts.writeRate.get,
+                          opts.dump.get)
 
     println(s"Using session = $session")
 

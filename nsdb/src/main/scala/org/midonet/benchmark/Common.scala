@@ -14,10 +14,10 @@
 // limitations under the License.
 //
 
-package org.midonet.benchmark.controller
+package org.midonet.benchmark
 
-import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
+import scala.concurrent.{Future, Promise}
 
 import io.netty.channel.{Channel, ChannelFuture, ChannelFutureListener}
 
@@ -30,10 +30,16 @@ object Common {
     val DefaultPort = 10000
     val DefaultReconnectionDelay = 3 seconds
 
-    case class Session(id: SessionId,
+    case class TestRun(id: SessionId,
                        controller: Option[String],
                        zkServers: Seq[String],
-                       clusterServers: Seq[String])
+                       clusterServers: Seq[String],
+                       duration: Option[Int],
+                       table: Option[String],
+                       tableCount: Option[Int],
+                       entryCount: Option[Int],
+                       writeRate: Option[Int],
+                       dumpFile: Option[String])
 
     implicit def toWrapper(msg: Bootstrap): BootstrapWrapper = {
         new BootstrapWrapper(msg)
@@ -41,14 +47,25 @@ object Common {
 
     class BootstrapWrapper(val msg: Bootstrap) extends AnyVal {
 
-        def toSession: Session = {
+        def toTestRun: TestRun = {
             def toSeq[T](n: Int, fn: Int => T): Seq[T] =
                 for (i <- 0 until n) yield fn(i)
-            Session(msg.getSessionId,
-                    if (msg.hasController) Some(msg.getController) else None,
+            def toOpt[T](checker: => Boolean,
+                         getter: => T): Option[T] = {
+                if (checker) Some(getter) else None
+            }
+
+            TestRun(msg.getSessionId,
+                    toOpt(msg.hasController, msg.getController),
                     toSeq(msg.getZookeeperServersCount,
                           msg.getZookeeperServers),
-                    toSeq(msg.getClusterServersCount, msg.getClusterServers))
+                    toSeq(msg.getClusterServersCount, msg.getClusterServers),
+                    toOpt(msg.hasDuration, msg.getDuration),
+                    toOpt(msg.hasTable, msg.getTable),
+                    toOpt(msg.hasTableCount, msg.getTableCount),
+                    toOpt(msg.hasEntryCount, msg.getEntryCount),
+                    toOpt(msg.hasWriteRate, msg.getWriteRate),
+                    toOpt(msg.hasDumpFile, msg.getDumpFile))
         }
     }
 
@@ -72,5 +89,10 @@ object Common {
             })
             promise.future
         }
+    }
+
+    trait BenchmarkRunner {
+        def start(session: TestRun): Unit
+        def stop(): Unit
     }
 }

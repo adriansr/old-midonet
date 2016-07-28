@@ -32,7 +32,7 @@ import io.netty.handler.logging.{LogLevel, LoggingHandler}
 import org.slf4j.LoggerFactory
 
 import org.midonet.benchmark.Protocol
-import org.midonet.benchmark.controller.Common._
+import org.midonet.benchmark.Common._
 
 object StateBenchmarkControlServer {
     val NumServerThreads = 1

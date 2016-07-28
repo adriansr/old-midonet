@@ -28,7 +28,7 @@ import com.typesafe.scalalogging.Logger
 import io.netty.channel.nio.NioEventLoopGroup
 
 import org.midonet.benchmark.Protocol._
-import org.midonet.benchmark.controller.Common._
+import org.midonet.benchmark.Common._
 import org.midonet.cluster.services.discovery.MidonetServiceHostAndPort
 import org.midonet.cluster.services.state.client.PersistentConnection
 
@@ -36,7 +36,8 @@ object StateBenchmarkControlClient {
     val DefaultReconnectionDelay = 3 seconds
 }
 
-class StateBenchmarkControlClient(remote: MidonetServiceHostAndPort,
+class StateBenchmarkControlClient(runner: BenchmarkRunner,
+                                  remote: MidonetServiceHostAndPort,
                                   executor: ScheduledExecutorService,
                                   eventLoopGroup: NioEventLoopGroup)
                                  (implicit ec: ExecutionContext)
@@ -174,46 +175,14 @@ class StateBenchmarkControlClient(remote: MidonetServiceHostAndPort,
         result
     }
 
-    trait BenchmarkRunner {
-        def start(session: Session): Unit
-        def stop(): Unit
-    }
-
-    object MockBenchmarkRunner extends BenchmarkRunner {
-
-        var timer: Timer = null
-
-        def start(session: Session): Unit = {
-            assert(timer == null)
-            timer = new Timer(true)
-            timer.schedule(new TimerTask {
-                def run(): Unit = {
-                    val msg = WorkerMessage.newBuilder()
-                        .setRequestId(requestId.incrementAndGet())
-                        .setData(Data.newBuilder()
-                            .setSessionId(session.id))
-                        .build()
-                    write(msg)
-                }
-            }, 300, 300)
-        }
-
-        def stop(): Unit = {
-            timer.cancel()
-            timer.purge()
-            timer = null
-        }
-    }
-
-    var benchmark = null
-    override def startBenchmark(session: Session): Boolean = {
+    override def startBenchmark(session: TestRun): Boolean = {
         log info s"Starting benchmark ${session.id}"
-        MockBenchmarkRunner.start(session)
+        runner.start(session)
         true
     }
 
     override def stopBenchmark(): Unit = {
         log info "Stopping benchmark"
-        MockBenchmarkRunner.stop()
+        runner.stop()
     }
 }
