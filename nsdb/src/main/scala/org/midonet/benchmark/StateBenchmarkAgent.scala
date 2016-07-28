@@ -16,7 +16,7 @@
 
 package org.midonet.benchmark
 
-import java.util.concurrent.{Callable, Executor, ScheduledThreadPoolExecutor}
+import java.util.concurrent.ScheduledThreadPoolExecutor
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -24,33 +24,35 @@ import io.netty.channel.nio.NioEventLoopGroup
 
 import org.rogach.scallop.ScallopConf
 
-import org.midonet.benchmark.controller.client.StateBenchmarkControlClient
 import org.midonet.benchmark.controller.Common._
+import org.midonet.benchmark.controller.client.StateBenchmarkControlClient
 import org.midonet.cluster.services.discovery.MidonetServiceHostAndPort
 
 object StateBenchmarkAgent extends App {
-
-    //val DefaultZkTimeoutMillis = 10000
 
     val opts = new ScallopConf(args) {
         val server = opt[String]("server", short = 's', default = Option("localhost"),
                                descr = "Controller host")
         val port = opt[Int]("port", short = 'p', default = Option(DefaultPort),
                             descr = "Controller port")
+        val count = opt[Int]("count", short = 'c', default = Option(1),
+                             descr = "Number of agents to spawn")
     }
 
-    val NumThreads = 2
-    val executor = new ScheduledThreadPoolExecutor(NumThreads)
-    val eventLoopGroup = new NioEventLoopGroup(1)
+    val controllerAddress =  MidonetServiceHostAndPort(opts.server.get.get,
+                                                       opts.port.get.get)
+    val NumAgents = opts.count.get.get
+    val executor = new ScheduledThreadPoolExecutor(NumAgents)
 
     executor.submit(new Runnable {
         override def run(): Unit = {
-            for (i <- 1 to 2) {
-                val client = new StateBenchmarkControlClient(
-                    MidonetServiceHostAndPort(opts.server.get.get,
-                                              opts.port.get.get),
-                    executor,
-                    eventLoopGroup)
+            for (i <- 1 to NumAgents) {
+                val NumThreads = 2
+
+                val eventLoopGroup = new NioEventLoopGroup(1)
+                val client = new StateBenchmarkControlClient(controllerAddress,
+                                                             executor,
+                                                             eventLoopGroup)
                 client.start()
             }
         }

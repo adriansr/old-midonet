@@ -18,7 +18,7 @@ package org.midonet.benchmark.controller.client
 import org.midonet.benchmark.Protocol._
 import org.midonet.benchmark.controller.Common._
 
-private[client] sealed trait ProtocolHandler {
+sealed trait ProtocolHandler {
 
     def onAcknowledgeReceived(rid: RequestId, msg: Acknowledge): Boolean
 
@@ -31,7 +31,7 @@ private[client] sealed trait ProtocolHandler {
     def onTerminateReceived(rid: RequestId, msg: Terminate): Boolean
 }
 
-private[client] sealed abstract
+private[controller] sealed abstract
 class ProtocolHandlerImpl(client: ClientInterface) extends ProtocolHandler {
 
     def onAcknowledgeReceived(rid: RequestId, msg: Acknowledge): Boolean = {
@@ -60,10 +60,9 @@ class ProtocolHandlerImpl(client: ClientInterface) extends ProtocolHandler {
     }
 }
 
-private[client]
+private[controller]
 class DisconnectedProtocolHandler(client: ClientInterface) extends ProtocolHandlerImpl(client)
 
-private[client]
 class IdleProtocolHandler(requestId: RequestId,
                           client: ClientInterface) extends ProtocolHandlerImpl(client) {
     override def onAcknowledgeReceived(rid: RequestId, msg: Acknowledge): Boolean = {
@@ -81,7 +80,6 @@ class IdleProtocolHandler(requestId: RequestId,
     }
 }
 
-private[client]
 class ReadyProtocolHandler(session: Session,
                            client: ClientInterface) extends ProtocolHandlerImpl(client) {
 
@@ -101,8 +99,6 @@ class ReadyProtocolHandler(session: Session,
     }
 }
 
-
-private[client]
 class RunningProtocolHandler(session: Session,
                              client: ClientInterface) extends ProtocolHandlerImpl(client) {
 
@@ -110,7 +106,8 @@ class RunningProtocolHandler(session: Session,
         val sid = msg.getSessionId
         if (sid == session.id) {
             client.stopBenchmark()
-            client.become(this, new ReadyProtocolHandler(session, client))
+            client.become(this, new ReadyProtocolHandler(session, client)) &&
+                client.acknowledge(rid)
         } else {
             client.logger warn s"Ignoring stop for wrong session $sid"
             true

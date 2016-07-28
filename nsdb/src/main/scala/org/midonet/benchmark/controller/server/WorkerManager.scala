@@ -17,7 +17,7 @@
 package org.midonet.benchmark.controller.server
 
 import java.net.SocketAddress
-import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
+import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
 
 import scala.annotation.tailrec
 import scala.collection.mutable.{Map => MutableMap}
@@ -37,7 +37,8 @@ object WorkerManager {
     case class Stats(numConnections: Int,
                      numRegistered: Int,
                      numConfigured: Int,
-                     numRunning: Int)
+                     numRunning: Int,
+                     numDataMessages: Int)
 
     type WorkerKey = SocketAddress
     private class Worker(channel: Channel) {
@@ -70,6 +71,7 @@ class WorkerManager {
 
     private val currentSession = new AtomicReference[Session]()
     private val requestId = new AtomicLong(0L)
+    private val dataCounter = new AtomicInteger(0)
 
     def connected(key: WorkerKey, channel: Channel): Unit = {
         log debug s"Connected $key"
@@ -112,7 +114,8 @@ class WorkerManager {
         val sid = data.getSessionId
         getWorker(key) { worker =>
             if (worker.isRunning && worker.sessionId == Some(sid)) {
-                log debug s"Received data from $key"
+                //log debug s"Received data from $key"
+                dataCounter.incrementAndGet()
             } else {
                 log debug s"Ignored data from $key for old session:$sid"
             }
@@ -176,6 +179,12 @@ class WorkerManager {
             .setStart(Start.newBuilder().setSessionId(sid))
             .build
 
+    private def stop(rid: RequestId, sid: SessionId): ControllerMessage =
+        ControllerMessage.newBuilder()
+            .setRequestId(rid)
+            .setStop(Stop.newBuilder().setSessionId(sid))
+            .build
+
     private def terminate(rid: RequestId,
                           reason: Option[String]): ControllerMessage = {
         val term = reason match {
@@ -228,14 +237,14 @@ class WorkerManager {
             }
         }
 
-        Stats(workers.size, numReg, numConf, numRunning)
+        Stats(workers.size, numReg, numConf, numRunning, dataCounter.get())
     }
 
     @tailrec
     final def configure(session: Session): Unit = {
         val prev = currentSession.get
         if (currentSession.compareAndSet(prev, session)) {
-
+            dataCounter.set(0)
             val workers = clientSnapshot()
 
             // TODO: detect running
@@ -295,6 +304,32 @@ class WorkerManager {
                     worker.send(msg)
                     running += 1
                 }
+            }
+        }
+    }
+
+    def stopWorkers(): Unit = {
+        val workers = clientSnapshot()
+
+        val session = currentSession.get
+        val target = Some(session.id)
+        val rid = requestId.incrementAndGet()
+        val msg = stop(rid, session.id)
+
+        for (worker <- workers.values) worker synchronized {
+            if (worker.isRegistered
+                && worker.sessionId == target
+                && worker.isRunning) {
+
+                worker.ackCallback = (worker, recvRid) => {
+                    if (recvRid == rid) {
+                        worker.ackCallback = spuriousAckHandler
+                        worker.isRunning = false
+                    } else {
+                        spuriousAckHandler(worker, recvRid)
+                    }
+                }
+                worker.send(msg)
             }
         }
     }

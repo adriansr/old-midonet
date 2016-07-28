@@ -16,8 +16,9 @@
 
 package org.midonet.benchmark.controller.client
 
+import java.util.{Timer, TimerTask}
 import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.atomic.{AtomicInteger, AtomicReference}
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicReference}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -27,7 +28,7 @@ import com.typesafe.scalalogging.Logger
 import io.netty.channel.nio.NioEventLoopGroup
 
 import org.midonet.benchmark.Protocol._
-import org.midonet.benchmark.controller.Common.{RequestId, Session}
+import org.midonet.benchmark.controller.Common._
 import org.midonet.cluster.services.discovery.MidonetServiceHostAndPort
 import org.midonet.cluster.services.state.client.PersistentConnection
 
@@ -71,28 +72,24 @@ class StateBenchmarkControlClient(remote: MidonetServiceHostAndPort,
       * is established (for the first time or after a connection retry)
       */
     override protected def onConnect(): Unit = {
-
-        log debug "Connected"
-
         val rid = requestId.getAndIncrement()
-
         handler.get match {
             case h: DisconnectedProtocolHandler
                 if become(h, new IdleProtocolHandler(rid,this)) =>
+                log debug "Connected to controller"
+                // send register message
+                if (write(WorkerMessage.newBuilder()
+                              .setRequestId(rid)
+                              .setRegister(Register.getDefaultInstance).build())) {
+                    log debug s"Sent register id:$rid"
+                } else {
+                    log warn "Failed to send register"
+                    val prev = handler.getAndSet(new DisconnectedProtocolHandler(this))
+                }
             case h: ProtocolHandler =>
                 val msg = s"Unexpected state on connect: $h"
                 log warn msg
                 throw new IllegalStateException(msg)
-        }
-
-        // send register message
-        if (write(WorkerMessage.newBuilder()
-                       .setRequestId(requestId.incrementAndGet())
-                       .setRegister(Register.getDefaultInstance).build())) {
-            log debug s"Sent register id:$rid"
-        } else {
-            log warn "Failed to send register"
-            val prev = handler.set(new DisconnectedProtocolHandler(this))
         }
     }
 
@@ -102,7 +99,12 @@ class StateBenchmarkControlClient(remote: MidonetServiceHostAndPort,
       */
     override protected def onDisconnect(cause: Throwable): Unit = {
         log debug "onDisconnect"
-        val prev = handler.set(new DisconnectedProtocolHandler(this))
+        val prev = handler.getAndSet(new DisconnectedProtocolHandler(this))
+        prev match {
+            case h: RunningProtocolHandler =>
+                stopBenchmark()
+            case _ =>
+        }
     }
 
     /**
@@ -172,12 +174,46 @@ class StateBenchmarkControlClient(remote: MidonetServiceHostAndPort,
         result
     }
 
+    trait BenchmarkRunner {
+        def start(session: Session): Unit
+        def stop(): Unit
+    }
+
+    object MockBenchmarkRunner extends BenchmarkRunner {
+
+        var timer: Timer = null
+
+        def start(session: Session): Unit = {
+            assert(timer == null)
+            timer = new Timer(true)
+            timer.schedule(new TimerTask {
+                def run(): Unit = {
+                    val msg = WorkerMessage.newBuilder()
+                        .setRequestId(requestId.incrementAndGet())
+                        .setData(Data.newBuilder()
+                            .setSessionId(session.id))
+                        .build()
+                    write(msg)
+                }
+            }, 300, 300)
+        }
+
+        def stop(): Unit = {
+            timer.cancel()
+            timer.purge()
+            timer = null
+        }
+    }
+
+    var benchmark = null
     override def startBenchmark(session: Session): Boolean = {
         log info s"Starting benchmark ${session.id}"
+        MockBenchmarkRunner.start(session)
         true
     }
 
     override def stopBenchmark(): Unit = {
         log info "Stopping benchmark"
+        MockBenchmarkRunner.stop()
     }
 }

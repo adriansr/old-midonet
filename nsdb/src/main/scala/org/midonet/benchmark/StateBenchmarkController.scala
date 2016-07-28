@@ -84,10 +84,9 @@ object StateBenchmarkController extends App {
             Runtime.getRuntime.exit(3)
     }
 
-    val numAgents = opts.num.get.get
-
     abstract class UiTimer(delayMsecs: Int,
                            field: WorkerManager.Stats => Int,
+                           target: Int,
                            name: String,
                            repeat: Boolean = false)
         extends TimerTask {
@@ -108,12 +107,12 @@ object StateBenchmarkController extends App {
 
         override def run(): Unit = {
             val count = field(server.manager.stats)
-            if (count < numAgents) {
-                print(s"\rWaiting for $name agents ... [ $count/$numAgents $name ] ")
+            if (count < target) {
+                print(s"\rWaiting for $name ... [ $count/$target $name ] ")
                 Console.out.flush()
             } else {
                 stop()
-                println(s"\rClients $name")
+                println(s"\rGot $target $name")
                 complete()
             }
         }
@@ -126,20 +125,47 @@ object StateBenchmarkController extends App {
         }
     }
 
+    val numAgents = opts.num.get.get
     val UiDelay = 100
+
+    val stopTimer = new UiTimer(UiDelay,
+                                - _.numRunning,
+                                0,
+                                "stopped",
+                                repeat = true) {
+        override def complete(): Unit = {
+            println("\nDone.")
+            System.exit(0)
+        }
+    }
+
+    val testTimer = new UiTimer(UiDelay,
+                                _.numDataMessages,
+                                100*numAgents,
+                                "data packets",
+                                repeat = true) {
+        override def complete(): Unit = {
+            server.manager.stopWorkers()
+            println("\n *** Finished ***")
+            stopTimer.start()
+        }
+    }
 
     val runTimer = new UiTimer(UiDelay,
                                _.numRunning,
-                               "running",
+                               numAgents,
+                               "running agents",
                                repeat = true) {
         override def complete(): Unit = {
-            println("\n *** Running ***\n")
+            println("\n *** Running ***")
+            testTimer.start()
         }
     }
 
     val configureTimer = new UiTimer(UiDelay,
                                      _.numConfigured,
-                                     "configured",
+                                     numAgents,
+                                     "configured agents",
                                      repeat = true) {
         override def complete(): Unit = {
             server.manager.startWorkers(numAgents)
@@ -149,7 +175,8 @@ object StateBenchmarkController extends App {
 
     val registeredTimer = new UiTimer(UiDelay,
                                       _.numRegistered,
-                                      "registered",
+                                      numAgents,
+                                      "registered agents",
                                       repeat = true) {
         override def complete(): Unit = {
             server.manager.configure(session)
