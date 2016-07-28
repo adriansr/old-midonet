@@ -108,7 +108,7 @@ object StateBenchmarkController extends App {
         override def run(): Unit = {
             val count = field(server.manager.stats)
             if (count < target) {
-                print(s"\rWaiting for $name ... [ $count/$target $name ] ")
+                print(s"\rWaiting for $name ... [ $count/$target ] ")
                 Console.out.flush()
             } else {
                 stop()
@@ -126,12 +126,12 @@ object StateBenchmarkController extends App {
     }
 
     val numAgents = opts.num.get.get
-    val UiDelay = 100
+    val UiDelay = 500
 
     val stopTimer = new UiTimer(UiDelay,
                                 - _.numRunning,
                                 0,
-                                "stopped",
+                                "still running",
                                 repeat = true) {
         override def complete(): Unit = {
             println("\nDone.")
@@ -185,28 +185,6 @@ object StateBenchmarkController extends App {
     }
 
     registeredTimer.start()
-
-    /*timer.schedule(new TimerTask {
-        override def run(): Unit = {
-            val s = server.manager.stats
-            print(s"[ connected:${s.numConnections} registered:${s.numRegistered} configured:${s.numConfigured} running:${s.numRunning} ]\n")
-            Console.out.flush()
-        }
-    }, 50, 50)
-
-    var counter = 1
-    timer.schedule(new TimerTask {
-        override def run(): Unit = {
-            counter += 1
-            val session = Session(counter,
-                                  None,
-                                  List("zk1", "zk2"),
-                                  List("s1", "s2", "s3", "s4"))
-
-            server.manager.configure(session)
-        }
-    }, 5000, 5000)*/
-
 
     /*
         val options = new ScallopConf(args) {
