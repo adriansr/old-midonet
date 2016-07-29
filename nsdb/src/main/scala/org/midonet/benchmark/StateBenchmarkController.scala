@@ -61,6 +61,11 @@ object StateBenchmarkController extends App {
                                   descr = "The number of writes per minute to a table.")
         val dump = opt[String]("dump", short = 'u', default = Some("benchmark-dump.out"),
                                 descr = "The output dump data file.")
+        val dbUrl = opt[String]("db-url", descr = "The InfluxDB database URL.")
+        val dbUser = opt[String]("db-user", descr = "The InfluxDB database user name.")
+        val dbPassword = opt[String]("db-password", descr = "The InfluxDB database password.")
+        val dbName = opt[String]("db-name", descr = "The InfluxDB database name.")
+
         //val stat = opt[String]("stat", short = 's', default = Some("benchmark-stat.out"),
         //                       descr = "The output statistics data file.") 
 
@@ -84,7 +89,11 @@ object StateBenchmarkController extends App {
                           opts.tableCount.get,
                           opts.entryCount.get,
                           opts.writeRate.get,
-                          opts.dump.get)
+                          opts.dump.get,
+                          opts.dbUrl.get,
+                          opts.dbUser.get,
+                          opts.dbPassword.get,
+                          opts.dbName.get)
 
     println(s"Using session = $session")
 

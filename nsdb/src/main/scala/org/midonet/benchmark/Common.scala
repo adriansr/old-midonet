@@ -22,7 +22,6 @@ import scala.concurrent.{Future, Promise}
 import io.netty.channel.{Channel, ChannelFuture, ChannelFutureListener}
 
 import org.midonet.benchmark.Protocol.Bootstrap
-import org.midonet.benchmark.tables.BenchmarkWriter
 
 object Common {
     type RequestId = Long
@@ -40,7 +39,11 @@ object Common {
                        tableCount: Option[Int],
                        entryCount: Option[Int],
                        writeRate: Option[Int],
-                       dumpFile: Option[String])
+                       dumpFile: Option[String],
+                       dbUrl: Option[String],
+                       dbUser: Option[String],
+                       dbPassword: Option[String],
+                       dbName: Option[String])
 
     implicit def toWrapper(msg: Bootstrap): BootstrapWrapper = {
         new BootstrapWrapper(msg)
@@ -66,7 +69,11 @@ object Common {
                     toOpt(msg.hasTableCount, msg.getTableCount),
                     toOpt(msg.hasEntryCount, msg.getEntryCount),
                     toOpt(msg.hasWriteRate, msg.getWriteRate),
-                    toOpt(msg.hasDumpFile, msg.getDumpFile))
+                    toOpt(msg.hasDumpFile, msg.getDumpFile),
+                    toOpt(msg.hasDbUrl, msg.getDbUrl),
+                    toOpt(msg.hasDbUser, msg.getDbUser),
+                    toOpt(msg.hasDbPassword, msg.getDbPassword),
+                    toOpt(msg.hasDbName, msg.getDbName))
         }
     }
 

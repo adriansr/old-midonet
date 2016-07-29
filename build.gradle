@@ -84,6 +84,7 @@ project.ext {
         hibernate_validator: "org.hibernate:hibernate-validator:4.3.0.Final",
         httpclient: "org.apache.httpcomponents:fluent-hc:4.4",
         infinispan: "org.infinispan:infinispan-commons:7.0.2.Final",
+	influxdb: "org.influxdb:influxdb-java:2.2",
         jackson_annotations: "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}",
         jackson_core: "com.fasterxml.jackson.core:jackson-core:${versions.jackson}",
         jackson_databind: "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}",

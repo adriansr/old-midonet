@@ -17,25 +17,19 @@
 package org.midonet.benchmark
 
 import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
-import java.nio.file.{FileSystems, StandardOpenOption}
 import java.util
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.{Executors, TimeUnit}
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.control.NonFatal
-import scala.util.{Failure, Success, Try}
 import scala.reflect.ClassTag
+import scala.util.control.NonFatal
 
 import com.codahale.metrics.MetricRegistry
-import com.typesafe.config.{ConfigFactory, ConfigRenderOptions}
+import com.typesafe.config.ConfigFactory
 
 import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.ExponentialBackoffRetry
-import org.apache.zookeeper.KeeperException
-import org.rogach.scallop.{ScallopConf, Subcommand}
 
 import rx.Observer
 
@@ -48,11 +42,9 @@ import org.midonet.cluster.models.Topology.{Network, Port, Router}
 import org.midonet.cluster.services.{MidonetBackend, MidonetBackendService}
 import org.midonet.cluster.storage.MidonetBackendConfig
 import org.midonet.cluster.util.UUIDUtil._
-import org.midonet.conf.HostIdGenerator.PropertiesFileNotWritableException
 import org.midonet.conf.MidoNodeConfigurator
 import org.midonet.packets.{IPv4Addr, MAC}
 import org.midonet.util.concurrent._
-import org.midonet.util.functors.makeRunnable
 
 object StateBenchmarkRunner {
 
@@ -66,6 +58,7 @@ object StateBenchmarkRunner {
     private val BenchmarkFailedErrorCode = 5
     private val TerminatedByServerCode = 6
 
+    /*
     private val WriteAddOp = 0.toByte
     private val WriteUpdateOp = 1.toByte
     private val WriteDeleteOp = 2.toByte
@@ -90,7 +83,8 @@ object StateBenchmarkRunner {
         def close(): Unit = {
             underlying.close()
         }
-    }
+    }*/
+
 
     private abstract class TableInfo[K,V](val objectClass: Class[_],
                                           val keyClass: Class[K],
@@ -114,7 +108,7 @@ object StateBenchmarkRunner {
                              timestamp: Long)
 
     private class Table(info: TableInfo[Any,Any], index: Int,
-                        writer: OutputWriter, inner: StateTable[Any, Any])
+                        inner: StateTable[Any, Any])
         extends Observer[Update[Any, Any]] {
 
         private val entries = new util.HashMap[Long, Entry]
@@ -126,19 +120,13 @@ object StateBenchmarkRunner {
             case Update(k, null, v) =>
                 val key = info.decodeKey(k)
                 val value = info.decodeValue(v)
-                writer.append(TableOp(index, key, oldValue = 0L, value,
-                                      System.currentTimeMillis(), ReadAddOp))
             case Update(k, v, null) =>
                 val key = info.decodeKey(k)
                 val value = info.decodeValue(v)
-                writer.append(TableOp(index, key, value, newValue = 0L,
-                                      System.currentTimeMillis(), ReadDeleteOp))
             case Update(k, ov, nv) =>
                 val key = info.decodeKey(k)
                 val oldValue = info.decodeValue(ov)
                 val newValue = info.decodeValue(nv)
-                writer.append(TableOp(index, key, oldValue, newValue,
-                                      System.currentTimeMillis(), ReadUpdateOp))
         }
 
         override def onError(e: Throwable): Unit = {
@@ -167,8 +155,6 @@ object StateBenchmarkRunner {
                 if (!inner.containsLocal(entry.encodedKey)) {
                     entries.put(key, entry)
                     inner.add(entry.encodedKey, entry.encodedValue)
-                    writer.append(TableOp(index, key, oldValue = 0L, value,
-                                          entry.timestamp, WriteAddOp))
                     return
                 }
             }
@@ -186,8 +172,6 @@ object StateBenchmarkRunner {
                                  System.currentTimeMillis())
             entries.put(newEntry.key, newEntry)
             inner.add(newEntry.encodedKey, newEntry.encodedValue)
-            writer.append(TableOp(index, newEntry.key, oldEntry.value, value,
-                                  newEntry.timestamp, WriteUpdateOp))
         }
 
         def remove(): Unit = {
@@ -197,8 +181,6 @@ object StateBenchmarkRunner {
             }
             entries.remove(entry.key)
             inner.remove(entry.encodedKey, entry.encodedValue)
-            writer.append(TableOp(index, entry.key, entry.value, newValue = 0L,
-                                  entry.timestamp, WriteDeleteOp))
         }
 
         private def randomEntry(): Entry = {
@@ -399,7 +381,7 @@ class StateBenchmarkRunner(implicit ec: ExecutionContext)
 
                 val zoom = backend.store.asInstanceOf[ZookeeperObjectMapper]
 
-                pre(config, backend, zoom, new OutputWriter(writer))
+                pre(config, backend, zoom)
                 warmUp(config, backend)
                 steadyState(config, backend)
                 post(config, backend)
@@ -427,8 +409,7 @@ class StateBenchmarkRunner(implicit ec: ExecutionContext)
 
         private def pre(config: MidonetBackendConfig,
                         backend: MidonetBackendService,
-                        zoom: ZookeeperObjectMapper,
-                        writer: OutputWriter): Unit = {
+                        zoom: ZookeeperObjectMapper): Unit = {
             println("[Step 1 of 4] Creating objects and tables...")
 
             val count = tableCount
@@ -446,7 +427,8 @@ class StateBenchmarkRunner(implicit ec: ExecutionContext)
                 val table = backend.stateTableStore
                     .getTable(info.objectClass, new UUID(0L, index), info.name)(
                         ClassTag(info.keyClass), ClassTag(info.valueClass))
-                tables(index) = new Table(info, index, writer, table.asInstanceOf[StateTable[Any, Any]])
+                tables(index) = new Table(info, index,
+                                          table.asInstanceOf[StateTable[Any, Any]])
             }
         }
 
@@ -468,22 +450,38 @@ class StateBenchmarkRunner(implicit ec: ExecutionContext)
         private def steadyState(config: MidonetBackendConfig,
                                 backend: MidonetBackendService): Unit = {
             println("[Step 3 of 4] Steady state benchmark for " +
-                    s"${duration} seconds...")
+                    s"$duration seconds...")
 
             val startTime = System.currentTimeMillis()
             val finishTime = startTime + duration * 1000
-            val sleepTime = 60000 / (writeRate * tables.length)
+            val meanSleepTime = 60000 / (writeRate * tables.length)
 
-            println(s"[Step 3 of 4] Average inter-op interval is $sleepTime " +
-                    "milliseconds")
-            while (System.currentTimeMillis() < finishTime
-                && !stopRequested.get) {
-
-                Thread.sleep(sleepTime)
-                tables(Random.nextInt(tables.length)).add()
+            def sleepTime(): Long = {
+                (-meanSleepTime * Math.log(1 - Random.nextDouble())).toLong
             }
 
-            println("[Step 3 of 4] Steady state completed")
+            println(s"[Step 3 of 4] Average inter-op interval is $meanSleepTime " +
+                    "milliseconds")
+            var additions = 0
+            var updates = 0
+            var removals = 0
+            while (System.currentTimeMillis() < finishTime && !stopRequested.get) {
+                Thread.sleep(sleepTime())
+                Random.nextInt(3) match {
+                    case 0 =>
+                        tables(Random.nextInt(tables.length)).add()
+                        additions += 1
+                    case 1 =>
+                        tables(Random.nextInt(tables.length)).update()
+                        updates += 1
+                    case 2 =>
+                        tables(Random.nextInt(tables.length)).remove()
+                        removals += 1
+                }
+            }
+
+            println(s"[Step 3 of 4] Steady state completed with $additions " +
+                    s"additions $updates updates $removals removals")
         }
 
         private def post(config: MidonetBackendConfig,

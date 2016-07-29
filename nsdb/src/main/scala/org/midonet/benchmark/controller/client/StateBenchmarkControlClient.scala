@@ -33,12 +33,46 @@ import io.netty.channel.nio.NioEventLoopGroup
 
 import org.midonet.benchmark.Protocol._
 import org.midonet.benchmark.Common._
-import org.midonet.benchmark.tables.BenchmarkWriter
+import org.midonet.benchmark.{BenchmarkWriter, InfluxDbBenchmarkWriter}
 import org.midonet.cluster.services.discovery.MidonetServiceHostAndPort
 import org.midonet.cluster.services.state.client.PersistentConnection
 
 object StateBenchmarkControlClient {
     val DefaultReconnectionDelay = 3 seconds
+
+
+    /*private class ProtocolBenchmarkWriter(client: StateBenchmarkControlClient)
+        extends BenchmarkWriter {
+
+        val SizeLimit = 1024
+        var buffer = new ByteArrayOutputStream(SizeLimit)
+
+        def append(data: ByteBuffer): Unit = {
+            val required = buffer.size() + data.position()
+            if (required > SizeLimit) {
+                flush()
+            }
+            buffer.write(data.array())
+        }
+
+        private def flush(): Unit = {
+            if (buffer.size() > 0) {
+                val msg = WorkerMessage.newBuilder()
+                    .setRequestId(client.requestId.incrementAndGet())
+                    .setData(
+                        Data.newBuilder()
+                            .setData(ByteString.copyFrom(buffer.toByteArray))
+                    ).build()
+                client.write(msg)
+                buffer.reset()
+            }
+        }
+
+        def close(): Unit = {
+            flush()
+        }
+    }*/
+
 }
 
 class StateBenchmarkControlClient(runner: BenchmarkRunner,
@@ -187,40 +221,19 @@ class StateBenchmarkControlClient(runner: BenchmarkRunner,
             .build())
     }
 
-    private val benchmarkWriter = new BenchmarkWriter {
-
-        val SizeLimit = 1024
-        var buffer = new ByteArrayOutputStream(SizeLimit)
-
-        def append(data: ByteBuffer): Unit = {
-            val required = buffer.size() + data.position()
-            if (required > SizeLimit) {
-                flush()
-            }
-            buffer.write(data.array())
-        }
-
-        private def flush(): Unit = {
-            if (buffer.size() > 0) {
-                val msg = WorkerMessage.newBuilder()
-                    .setRequestId(requestId.incrementAndGet())
-                    .setData(
-                        Data.newBuilder()
-                            .setData(ByteString.copyFrom(buffer.toByteArray))
-                    ).build()
-                write(msg)
-                buffer.reset()
-            }
-        }
-
-        def close(): Unit = {
-            flush()
-        }
-    }
-
     override def startBenchmark(session: TestRun): Boolean = {
         log info s"Starting benchmark ${session.id}"
-        runner.start(session, benchmarkWriter) onComplete {
+        val writer =if (session.dbUrl.isDefined && session.dbUser.isDefined
+                        && session.dbPassword.isDefined && session.dbName.isDefined) {
+            new InfluxDbBenchmarkWriter(session.dbUrl.get,
+                                        session.dbUser.get,
+                                        session.dbPassword.get,
+                                        session.dbName.get)
+        } else {
+            assert(false)
+            null
+        }
+        runner.start(session, writer) onComplete {
             case Success(true) => // stopped by itself
                 notifyBenchmarkStopped(session.id)
             case Success(false) =>

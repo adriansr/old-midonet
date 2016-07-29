@@ -58,6 +58,10 @@ message Bootstrap {
     optional uint32 entry_count = 8;
     optional uint32 write_rate = 9;
     optional string dump_file = 10;
+    optional string dbUrl = 11;
+    optional string dbUser = 12;
+    optional string dbPassword = 13;
+    optional string dbName = 14;
 }
 
 message Acknowledge {

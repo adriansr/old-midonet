@@ -16,10 +16,11 @@
 
 package org.midonet.benchmark.tables
 
-import java.nio.ByteBuffer
 import java.util
 import java.util.UUID
 
+import org.midonet.benchmark.BenchmarkWriter
+import org.midonet.benchmark.BenchmarkWriter.StateTableMetric
 import org.midonet.benchmark.tables.StateTableMetrics.{Entry, Stat}
 import org.midonet.cluster.data.storage.model.ArpEntry
 import org.midonet.packets.{IPv4Addr, MAC}
@@ -69,7 +70,7 @@ trait StateTableMetrics[K, V] {
         val stat = adding.remove(entry)
         if (stat ne null) {
             stat.storage = System.nanoTime()
-            updateAddStat(entry, stat)
+            updateStat(entry, stat, operation = 1)
         }
     }
 
@@ -78,7 +79,7 @@ trait StateTableMetrics[K, V] {
         val stat = adding.remove(entry)
         if (stat ne null) {
             stat.proxy = System.nanoTime()
-            updateAddStat(entry, stat)
+            updateStat(entry, stat, operation = 1)
         }
     }
 
@@ -98,7 +99,7 @@ trait StateTableMetrics[K, V] {
         val stat = removing.remove(entry)
         if (stat ne null) {
             stat.storage = System.nanoTime()
-            updateRemoveStat(entry, stat)
+            updateStat(entry, stat, operation = 2)
         }
     }
 
@@ -107,47 +108,19 @@ trait StateTableMetrics[K, V] {
         val stat = removing.remove(entry)
         if (stat ne null) {
             stat.proxy = System.nanoTime()
-            updateRemoveStat(entry, stat)
+            updateStat(entry, stat, operation = 2)
         }
     }
 
-    private def updateAddStat(entry: Entry[K, V], stat: Stat): Unit = {
+    private def updateStat(entry: Entry[K, V], stat: Stat, operation: Int): Unit = {
         if (StateTableMetrics.writer ne null) {
-            val buffer = ByteBuffer.allocate(44)
-            buffer.putInt(1)
-            buffer.putLong(StateTableMetrics.encodeEntry(entry.key))
-            buffer.putLong(StateTableMetrics.encodeEntry(entry.value))
-            if (stat.callback > Long.MinValue) {
-                buffer.putLong(stat.callback - stat.init)
-            }
-            if (stat.storage > Long.MinValue) {
-                buffer.putLong(stat.storage - stat.init)
-            }
-            if (stat.proxy > Long.MinValue) {
-                buffer.putLong(stat.proxy - stat.init)
-            }
-            buffer.rewind()
-            StateTableMetrics.writer.append(buffer)
-        }
-    }
-
-    private def updateRemoveStat(entry: Entry[K, V], stat: Stat): Unit = {
-        if (StateTableMetrics.writer ne null) {
-            val buffer = ByteBuffer.allocate(44)
-            buffer.putInt(2)
-            buffer.putLong(StateTableMetrics.encodeEntry(entry.key))
-            buffer.putLong(StateTableMetrics.encodeEntry(entry.value))
-            if (stat.callback > Long.MinValue) {
-                buffer.putLong(stat.callback - stat.init)
-            }
-            if (stat.storage > Long.MinValue) {
-                buffer.putLong(stat.storage - stat.init)
-            }
-            if (stat.proxy > Long.MinValue) {
-                buffer.putLong(stat.proxy - stat.init)
-            }
-            buffer.rewind()
-            StateTableMetrics.writer.append(buffer)
+            StateTableMetrics.writer.append(StateTableMetric(
+                System.currentTimeMillis(), operation,
+                StateTableMetrics.encodeEntry(entry.key),
+                StateTableMetrics.encodeEntry(entry.value),
+                if (stat.callback > Long.MinValue) stat.callback - stat.init else 0L,
+                if (stat.storage > Long.MinValue) stat.storage - stat.init else 0L,
+                if (stat.proxy > Long.MinValue) stat.proxy - stat.init else 0L))
         }
     }
 
