@@ -71,6 +71,9 @@ class ProtocolHandler(manager: WorkerManager)
             case WorkerMessage.ContentCase.UNREGISTER =>
                 manager.unregisterReceived(client, rid)
 
+            case WorkerMessage.ContentCase.STOP =>
+                manager.stopReceived(client, rid)
+
             case _ => handleUnknownMessage(ctx)
         }
     }

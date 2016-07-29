@@ -152,6 +152,17 @@ class WorkerManager {
             }
         }
 
+    def stopReceived(key: WorkerKey, rid: RequestId): Boolean =
+        getWorker(key) { worker =>
+            if (worker.isRunning) {
+                worker.isRunning = false
+                worker.send(acknowledge(rid))
+            } else {
+                worker.send(terminate(rid, Some("Not running")))
+                worker.close()
+            }
+        }
+
     private def getWorker(key: WorkerKey)(body: Worker => Any): Boolean = {
         def fetch(key: WorkerKey) = clients synchronized {
             clients.get(key)
