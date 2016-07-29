@@ -25,6 +25,12 @@ import scala.util.control.NonFatal
 
 import org.midonet.util.functors._
 
+trait BenchmarkWriter {
+    def append(buffer: ByteBuffer): Unit
+    def close(): Unit
+}
+
+/*
 class BenchmarkWriter(fileName: String) {
 
     val path = FileSystems.getDefault.getPath(fileName)
@@ -49,3 +55,4 @@ class BenchmarkWriter(fileName: String) {
         channel.close()
     }
 }
+*/

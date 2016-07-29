@@ -22,6 +22,7 @@ import scala.concurrent.{Future, Promise}
 import io.netty.channel.{Channel, ChannelFuture, ChannelFutureListener}
 
 import org.midonet.benchmark.Protocol.Bootstrap
+import org.midonet.benchmark.tables.BenchmarkWriter
 
 object Common {
     type RequestId = Long
@@ -92,7 +93,7 @@ object Common {
     }
 
     trait BenchmarkRunner {
-        def start(session: TestRun): Unit
+        def start(session: TestRun, writer: BenchmarkWriter): Future[Boolean]
         def stop(): Unit
     }
 }

@@ -21,8 +21,10 @@ import java.nio.channels.FileChannel
 import java.nio.file.{FileSystems, StandardOpenOption}
 import java.util
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.{Executors, TimeUnit}
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 import scala.reflect.ClassTag
@@ -62,6 +64,7 @@ object StateBenchmarkRunner {
     private val ZooKeeperErrorCode = 3
     private val OtherErrorCode = 4
     private val BenchmarkFailedErrorCode = 5
+    private val TerminatedByServerCode = 6
 
     private val WriteAddOp = 0.toByte
     private val WriteUpdateOp = 1.toByte
@@ -70,34 +73,22 @@ object StateBenchmarkRunner {
     private val ReadUpdateOp = 4.toByte
     private val ReadDeleteOp = 5.toByte
 
-    private class OutputWriter(output: String) {
-        val path = FileSystems.getDefault.getPath(output)
-        val channel = FileChannel.open(
-            path, StandardOpenOption.CREATE, StandardOpenOption.WRITE,
-            StandardOpenOption.TRUNCATE_EXISTING)
-        val executor = Executors.newSingleThreadExecutor()
+    private class OutputWriter(underlying: BenchmarkWriter) {
 
         def append(op: TableOp): Unit = {
-            executor.submit(makeRunnable {
-                val buffer = ByteBuffer.allocate(40)
-                buffer.putInt(op.table)
-                buffer.putLong(op.key)
-                buffer.putLong(op.oldValue)
-                buffer.putLong(op.newValue)
-                buffer.putLong(op.timestamp)
-                buffer.putInt(op.op)
-                buffer.rewind()
-                channel.write(buffer)
-            })
+            val buffer = ByteBuffer.allocate(40)
+            buffer.putInt(op.table)
+            buffer.putLong(op.key)
+            buffer.putLong(op.oldValue)
+            buffer.putLong(op.newValue)
+            buffer.putLong(op.timestamp)
+            buffer.putInt(op.op)
+            buffer.rewind()
+            underlying.append(buffer)
         }
 
         def close(): Unit = {
-            executor.shutdown()
-            while (!executor.awaitTermination(600000, TimeUnit.MILLISECONDS)) {
-                System.err.println("[bm-agent] Closing the output writer timed " +
-                                   "out after 10 minutes")
-            }
-            channel.close()
+            underlying.close()
         }
     }
 
@@ -332,7 +323,8 @@ object StateBenchmarkRunner {
     }
 }
 
-class StateBenchmarkRunner extends BenchmarkRunner {
+class StateBenchmarkRunner(implicit ec: ExecutionContext)
+    extends BenchmarkRunner {
 
     import StateBenchmarkRunner._
 
@@ -353,8 +345,8 @@ class StateBenchmarkRunner extends BenchmarkRunner {
         }
     }*/
 
-    object Simple extends Subcommand("simple") with BenchmarkCommand {
-        descr("Simple benchmark where the benchmark writes at a given average " +
+    class Simple(session: TestRun, writer: BenchmarkWriter) {
+        /*descr("Simple benchmark where the benchmark writes at a given average " +
               "rate to a number of state tables, and reads the updates from " +
               "all tables. The write operations follow an exponential " +
               "distribution. The benchmark begins with a warm-up interval " +
@@ -363,34 +355,22 @@ class StateBenchmarkRunner extends BenchmarkRunner {
               "interval during which the benchmark randomly chooses one of " +
               "the following operations: (i) updating an entry, (ii) removing " +
               "and adding a new entry. The specified benchmark duration " +
-              "refers to the steady-state interval.")
+              "refers to the steady-state interval.")*/
 
-        val table =
-            opt[String]("table", short = 't', default = Some("bridge-mac"), descr =
-                "The state table class, it can be one of the following: " +
-                "bridge-mac, bridge-arp, router-arp, router-peer")
-        val duration =
-            opt[Int]("duration", short = 'd', default = Some(600), descr =
-                "The test duration in seconds")
-        val tableCount =
-            opt[Int]("table-count", short = 'n', default = Some(10), descr =
-                "The number of tables to which the benchmark writes")
-        val entryCount =
-            opt[Int]("entry-count", short = 'e', default = Some(100), descr =
-                "The initial number of entries added by the benchmark")
-        val writeRate =
-            opt[Int]("write-rate", short = 'w', default = Some(60), descr =
-                "The number of writes per minute to a table.")
-        val dump =
-            opt[String]("dump", short = 'u', default = Some("benchmark-dump.out"), descr =
-                "The output dump data file.")
-        val stat =
-            opt[String]("stat", short = 's', default = Some("benchmark-stat.out"), descr =
-                "The output statistics data file.")
+        val table = session.table.getOrElse("bridge-mac")
+        val duration = session.duration.getOrElse(600)
+        val tableCount = session.tableCount.getOrElse(10)
+        val entryCount = session.entryCount.getOrElse(100)
+        val writeRate = session.writeRate.getOrElse(60)
+        val dump = session.dumpFile.getOrElse("benchmark-dump.out")
+        //val stat =session.st"benchmark-stat.out"), descr =
+        //        "The output statistics data file.")
 
         private var tables: Array[Table] = null
+        private val stopRequested = new AtomicBoolean(false)
 
-        override def run(configurator: MidoNodeConfigurator): Int = {
+        def run(configurator: MidoNodeConfigurator): Int = {
+
             println("Starting simple benchmark...")
 
             val config = new MidonetBackendConfig(configurator.runtimeConfig)
@@ -412,21 +392,26 @@ class StateBenchmarkRunner extends BenchmarkRunner {
                 }
             }
 
-            val writer = new OutputWriter(dump.get.get)
-            StateTableMetrics.writer = new BenchmarkWriter(stat.get.get)
+            StateTableMetrics.writer = writer
 
             try {
                 backend.startAsync().awaitRunning()
 
                 val zoom = backend.store.asInstanceOf[ZookeeperObjectMapper]
 
-                pre(config, backend, zoom, writer)
+                pre(config, backend, zoom, new OutputWriter(writer))
                 warmUp(config, backend)
                 steadyState(config, backend)
                 post(config, backend)
 
-                println("Simple benchmark completed successfully")
-                SuccessCode
+                if (stopRequested.get) {
+                    println("Simple benchmark terminated by server")
+                    stopRequested.set(false)
+                    TerminatedByServerCode
+                } else {
+                    println("Simple benchmark completed successfully")
+                    SuccessCode
+                }
             } catch {
                 case NonFatal(e) =>
                     System.err.println("[bm-agent] Simple benchmark failed: " +
@@ -446,8 +431,8 @@ class StateBenchmarkRunner extends BenchmarkRunner {
                         writer: OutputWriter): Unit = {
             println("[Step 1 of 4] Creating objects and tables...")
 
-            val count = tableCount.get.get
-            val info = Tables.getOrElse(table.get.get,
+            val count = tableCount
+            val info = Tables.getOrElse(table,
                                         throw new IllegalArgumentException("No such table"))
                 .asInstanceOf[TableInfo[Any, Any]]
             tables = new Array[Table](count)
@@ -467,7 +452,7 @@ class StateBenchmarkRunner extends BenchmarkRunner {
 
         private def warmUp(config: MidonetBackendConfig,
                            backend: MidonetBackendService): Unit = {
-            val count = entryCount.get.get
+            val count = entryCount
             println(s"[Step 2 of 4] Warming up by adding $count entries " +
                     s"to ${tables.length} tables...")
 
@@ -483,15 +468,17 @@ class StateBenchmarkRunner extends BenchmarkRunner {
         private def steadyState(config: MidonetBackendConfig,
                                 backend: MidonetBackendService): Unit = {
             println("[Step 3 of 4] Steady state benchmark for " +
-                    s"${duration.get.get} seconds...")
+                    s"${duration} seconds...")
 
             val startTime = System.currentTimeMillis()
-            val finishTime = startTime + duration.get.get * 1000
-            val sleepTime = 60000 / (writeRate.get.get * tables.length)
+            val finishTime = startTime + duration * 1000
+            val sleepTime = 60000 / (writeRate * tables.length)
 
             println(s"[Step 3 of 4] Average inter-op interval is $sleepTime " +
                     "milliseconds")
-            while (System.currentTimeMillis() < finishTime) {
+            while (System.currentTimeMillis() < finishTime
+                && !stopRequested.get) {
+
                 Thread.sleep(sleepTime)
                 tables(Random.nextInt(tables.length)).add()
             }
@@ -504,7 +491,7 @@ class StateBenchmarkRunner extends BenchmarkRunner {
             Thread.sleep(10000)
             println("[Step 4 of 4] Cleaning up...")
 
-            val info = Tables.getOrElse(table.get.get,
+            val info = Tables.getOrElse(table,
                                         throw new IllegalArgumentException("No such table"))
                 .asInstanceOf[TableInfo[Any, Any]]
 
@@ -515,17 +502,40 @@ class StateBenchmarkRunner extends BenchmarkRunner {
             }
         }
 
+        def stop(): Unit = {
+            stopRequested.set(true)
+        }
     }
 
-    def start(session: TestRun): Unit = {
+    @volatile
+    var test: Simple = null
 
-        val bootstrapConfig =
-            ConfigFactory.parseString("zookeeper.bootstrap_timeout : 1s")
+    def start(session: TestRun,
+              writer: BenchmarkWriter): Future[Boolean] = {
 
-        Simple.run(MidoNodeConfigurator(bootstrapConfig))
+        test = new Simple(session, writer)
+
+        Future[Int] {
+            val bootstrapConfig =
+                ConfigFactory.parseString("zookeeper.bootstrap_timeout : 1s")
+
+            val result = if (test != null) {
+                test.run(MidoNodeConfigurator(bootstrapConfig))
+            } else {
+                TerminatedByServerCode
+            }
+            test = null
+            result
+        }.map {
+            case TerminatedByServerCode => false
+            case _ => true
+        }
     }
 
     def stop(): Unit = {
-
+        if (test != null) {
+            test.stop()
+            test = null
+        }
     }
 }

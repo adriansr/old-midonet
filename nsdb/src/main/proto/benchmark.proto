@@ -81,6 +81,7 @@ message Terminate {
 
 message Data {
     required uint64 session_id = 1;
+    optional bytes data = 2;
 }
 
 message WorkerMessage {
@@ -91,6 +92,7 @@ message WorkerMessage {
         Acknowledge acknowledge = 4;
         Error error = 5;
         Data data = 6;
+        Stop stop = 7;
     }
 }
 

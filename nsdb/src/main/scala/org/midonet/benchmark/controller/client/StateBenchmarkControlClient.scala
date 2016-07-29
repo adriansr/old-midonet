@@ -16,19 +16,24 @@
 
 package org.midonet.benchmark.controller.client
 
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.util.{Timer, TimerTask}
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicReference}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
+import com.google.protobuf.ByteString
 import com.typesafe.scalalogging.Logger
 
 import io.netty.channel.nio.NioEventLoopGroup
 
 import org.midonet.benchmark.Protocol._
 import org.midonet.benchmark.Common._
+import org.midonet.benchmark.tables.BenchmarkWriter
 import org.midonet.cluster.services.discovery.MidonetServiceHostAndPort
 import org.midonet.cluster.services.state.client.PersistentConnection
 
@@ -171,13 +176,58 @@ class StateBenchmarkControlClient(runner: BenchmarkRunner,
         } else {
             log warn s"Failed sending acknowledge $rid"
         }
-
         result
+    }
+
+    private def notifyBenchmarkStopped(sid: SessionId): Unit = {
+        write(WorkerMessage.newBuilder()
+            .setRequestId(requestId.incrementAndGet())
+            .setStop(Stop.newBuilder()
+                .setSessionId(sid))
+            .build())
+    }
+
+    private val benchmarkWriter = new BenchmarkWriter {
+
+        val SizeLimit = 1024
+        var buffer = new ByteArrayOutputStream(SizeLimit)
+
+        def append(data: ByteBuffer): Unit = {
+            val required = buffer.size() + data.position()
+            if (required > SizeLimit) {
+                flush()
+            }
+            buffer.write(data.array())
+        }
+
+        private def flush(): Unit = {
+            if (buffer.size() > 0) {
+                val msg = WorkerMessage.newBuilder()
+                    .setRequestId(requestId.incrementAndGet())
+                    .setData(
+                        Data.newBuilder()
+                            .setData(ByteString.copyFrom(buffer.toByteArray))
+                    ).build()
+                write(msg)
+                buffer.reset()
+            }
+        }
+
+        def close(): Unit = {
+            flush()
+        }
     }
 
     override def startBenchmark(session: TestRun): Boolean = {
         log info s"Starting benchmark ${session.id}"
-        runner.start(session)
+        runner.start(session, benchmarkWriter) onComplete {
+            case Success(true) => // stopped by itself
+                notifyBenchmarkStopped(session.id)
+            case Success(false) =>
+                log debug "Test stopped by server"
+            case Failure(err) =>
+                log error s"Test failed: $err"
+        }
         true
     }
 
