@@ -64,13 +64,12 @@ object VppSetup {
 
         @throws[Exception]
         override def execute(): Future[Any] = {
-            vppApi.createDevice(deviceName, macSource.macAddress)
-                .flatMap { result =>
+            vppApi.createDevice(deviceName, macSource.getMac)
+                .flatMap[Int] { result =>
                     vppApi.setDeviceAdminState(result.swIfIndex,
                                                isUp = true)
                         .map( _ => result.swIfIndex)
-                }
-                .andThen {
+                } andThen {
                     case Success(index) => interfaceIndex = Some(index)
                 }
         }
