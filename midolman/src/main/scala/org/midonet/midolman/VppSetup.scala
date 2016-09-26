@@ -111,7 +111,7 @@ class VppSetup(uplinkInterface: String,
 
     import VppSetup._
 
-    val vppApi = new VppApi("midolman")
+    var vppApi: VppApi = null //new VppApi("midolman")
 
     val uplinkVppName = "uplink-vpp-" + uplinkInterface
     val uplinkOvsName = "uplink-ovs-" + uplinkInterface
@@ -125,11 +125,27 @@ class VppSetup(uplinkInterface: String,
                                   vppApi,
                                   uplinkVeth)
 
+    object vppConnect extends Task {
+
+        override def name: String = "vpp connect"
+
+        @throws[Exception]
+        override def execute(): Future[Any] = Future {
+            vppApi = new VppApi("midolman")
+        }
+
+        @throws[Exception]
+        override def rollback(): Future[Any] = Future {
+            vppApi = null
+        }
+    }
     // val uplinkOvs = new OvsDatapath("uplink flow at ovs",...)
 
     /*
      * setup the tasks, in execution order
      */
+
+    add(vppConnect)
     add(uplinkVeth)
     add(uplinkVpp)
     // add(uplinkOvs)
