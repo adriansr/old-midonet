@@ -74,14 +74,14 @@ class TaskSequence(val name: String)(implicit ec: ExecutionContext)
                           delta: Int,
                           action: Task => Future[Any]): Future[Any] = {
         if (steps.nonEmpty) {
-            log debug s"Started to $operation $name"
+            //log.debug(s"Started to $operation $name")
             val promise = Promise[Unit]
             executeChained(operation, delta, action) onComplete {
                 case Success(_) =>
-                    log debug s"Completed $operation of $name"
+                    //log.debug(s"Completed $operation of $name")
                     promise.success(())
                 case Failure(err) =>
-                    log warn s"Failed to $operation $name: $err"
+                    //log.warn(s"Failed to $operation $name: $err")
                     promise.failure(err)
             }
             promise.future
@@ -96,15 +96,15 @@ class TaskSequence(val name: String)(implicit ec: ExecutionContext)
         if (position >=0 && position < steps.size) {
             try {
                 val task = steps(position)
-                log trace s"Sequence $name: $operation ${task.name}"
+                //log.trace(s"Sequence $name: $operation ${task.name}")
                 action(task) recover {
                     case NonFatal(err) =>
-                        log warn s"Sequence $name: $operation failed " +
-                                 s"${task.name}: $err"
+                        //log warn s"Sequence $name: $operation failed " +
+                        //         s"${task.name}: $err"
                         throw err
                 } flatMap { _ =>
-                    log trace s"Sequence $name: completed $operation " +
-                              s"${task.name}"
+                    //log trace s"Sequence $name: completed $operation " +
+                    //          s"${task.name}"
                     position += delta
                     executeChained(operation, delta, action)
                 }
