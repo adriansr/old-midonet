@@ -28,7 +28,7 @@ import org.midonet.util.concurrent.{Task, TaskSequence}
 object VppSetup {
 
     trait MacSource {
-        def macAddress: Option[Array[Byte]]
+        def getMac: Option[Array[Byte]]
     }
 
     class VethPairSetup(override val name: String,
@@ -37,7 +37,9 @@ object VppSetup {
                        (implicit ec: ExecutionContext)
         extends Task with MacSource {
 
-        override var macAddress: Option[Array[Byte]] = None
+        var macAddress: Option[Array[Byte]] = None
+
+        override def getMac: Option[Array[Byte]] = macAddress
 
         @throws[Exception]
         override def execute(): Future[Any] = Future {
