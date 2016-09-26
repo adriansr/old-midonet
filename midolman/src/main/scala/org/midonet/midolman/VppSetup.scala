@@ -26,7 +26,7 @@ class VppSetup(uplinkInterface: String,
                upcallConnManager: UpcallDatapathConnectionManager)
               (implicit ec: ExecutionContext)
     extends TaskSequence("VPP setup") {
-    
+
     class VethPairSetup(override val name: String,
                         devName: String,
                         peerName: String) extends Task {
