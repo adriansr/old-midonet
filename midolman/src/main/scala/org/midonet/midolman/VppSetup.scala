@@ -17,7 +17,8 @@
 package org.midonet.midolman
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Success
+import scala.util.{Failure, Success, Try}
+import scala.util.control.NonFatal
 
 import org.midonet.midolman.io.UpcallDatapathConnectionManager
 import org.midonet.midolman.vpp.VppApi
@@ -131,7 +132,21 @@ class VppSetup(uplinkInterface: String,
 
         @throws[Exception]
         override def execute(): Future[Any] = Future {
-            vppApi = new VppApi("midolman")
+            var count = 0
+            vppApi = null
+            do {
+                Try{ new VppApi("midolman") } match {
+                    case Success(api) =>
+                        vppApi = api
+                    case Failure(err) =>
+                        count += 1
+                        if (count < 10) {
+                            Thread.sleep(1000)
+                        } else {
+                            throw err
+                        }
+                }
+            } while(vppApi eq null)
         }
 
         @throws[Exception]
