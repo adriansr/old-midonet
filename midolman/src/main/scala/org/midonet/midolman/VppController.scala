@@ -87,13 +87,13 @@ class VppController @Inject() (config: MidolmanConfig)
     }
 
     override def postStop(): Unit = {
+        watchedPorts.foreach { element =>
+            Await.ready(element._2._2.rollback(), VppRollbackTimeout millis)
+        }
         if ((vppProcess ne null) && vppProcess.isRunning) {
             stopVppProcess()
         }
         portsSubscription.unsubscribe()
-        watchedPorts.foreach { element =>
-            Await.ready(element._2._2.rollback(), VppRollbackTimeout millis)
-        }
         watchedPorts.clear()
         super.postStop()
     }
