@@ -130,8 +130,7 @@ class VppController @Inject() (config: MidolmanConfig)
         }
         val setup = new VppSetup(port.interfaceName,
                                  upcallConnManager,
-                                 datapathState,
-                                 log)
+                                 datapathState)
 
         setup.execute() onComplete {
             case Success(_) => watchedPorts += portId -> (port, setup)

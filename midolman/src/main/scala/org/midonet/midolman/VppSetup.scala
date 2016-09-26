@@ -105,10 +105,9 @@ object VppSetup {
 
 class VppSetup(uplinkInterface: String,
                upcallConnManager: UpcallDatapathConnectionManager,
-               datapathState: DatapathState,
-               log: Logger)
+               datapathState: DatapathState)
               (implicit ec: ExecutionContext)
-    extends TaskSequence("VPP setup", log) {
+    extends TaskSequence("VPP setup") {
 
     import VppSetup._
 

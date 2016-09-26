@@ -20,7 +20,7 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success}
 import scala.util.control.NonFatal
 
-import org.midonet.util.logging.{Logger, Logging}
+import org.midonet.util.logging.Logging
 
 /**
   * TaskSequence
@@ -46,10 +46,11 @@ object Task {
     }
 }
 
-class TaskSequence(val name: String,
-                   log: Logger)(implicit ec: ExecutionContext)
-    extends Task {
+class TaskSequence(val name: String)(implicit ec: ExecutionContext)
+    extends Task
+            with Logging {
 
+    private val logger = log.underlying
     private val steps = ArrayBuffer.empty[Task]
     private var position = 0
 
@@ -74,14 +75,14 @@ class TaskSequence(val name: String,
                           delta: Int,
                           action: Task => Future[Any]): Future[Any] = {
         if (steps.nonEmpty) {
-            log.debug(s"Started to $operation $name")
+            logger.debug(s"Started to $operation $name")
             val promise = Promise[Unit]
             executeChained(operation, delta, action) onComplete {
                 case Success(_) =>
-                    log.debug(s"Completed $operation of $name")
+                    logger.debug(s"Completed $operation of $name")
                     promise.success(())
                 case Failure(err) =>
-                    log.warn(s"Failed to $operation $name: $err")
+                    logger.warn(s"Failed to $operation $name: $err")
                     promise.failure(err)
             }
             promise.future
@@ -96,14 +97,14 @@ class TaskSequence(val name: String,
         if (position >=0 && position < steps.size) {
             try {
                 val task = steps(position)
-                log.trace(s"Sequence $name: $operation ${task.name}")
+                logger.trace(s"Sequence $name: $operation ${task.name}")
                 action(task) recover {
                     case NonFatal(err) =>
-                        log.warn(s"Sequence $name: $operation failed " +
+                        logger.warn(s"Sequence $name: $operation failed " +
                                  s"${task.name}: $err")
                         throw err
                 } flatMap { _ =>
-                    log.trace(s"Sequence $name: completed $operation " +
+                    logger.trace(s"Sequence $name: completed $operation " +
                               s"${task.name}")
                     position += delta
                     executeChained(operation, delta, action)
