@@ -24,6 +24,7 @@ import org.midonet.midolman.vpp.VppApi
 import org.midonet.netlink.rtnetlink.LinkOps
 import org.midonet.odp.ports.NetDevPort
 import org.midonet.util.concurrent.{Task, TaskSequence}
+import org.midonet.util.logging.Logger
 
 object VppSetup {
 
@@ -104,9 +105,10 @@ object VppSetup {
 
 class VppSetup(uplinkInterface: String,
                upcallConnManager: UpcallDatapathConnectionManager,
-               datapathState: DatapathState)
+               datapathState: DatapathState,
+               log: Logger)
               (implicit ec: ExecutionContext)
-    extends TaskSequence("VPP setup") {
+    extends TaskSequence("VPP setup", log) {
 
     import VppSetup._
 

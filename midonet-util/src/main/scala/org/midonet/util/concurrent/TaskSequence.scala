@@ -20,7 +20,7 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success}
 import scala.util.control.NonFatal
 
-import org.midonet.util.logging.Logging
+import org.midonet.util.logging.{Logger, Logging}
 
 /**
   * TaskSequence
@@ -46,9 +46,9 @@ object Task {
     }
 }
 
-class TaskSequence(val name: String)(implicit ec: ExecutionContext)
-    extends Task
-            with Logging {
+class TaskSequence(val name: String,
+                   log: Logger)(implicit ec: ExecutionContext)
+    extends Task {
 
     private val steps = ArrayBuffer.empty[Task]
     private var position = 0
