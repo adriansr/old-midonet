@@ -128,10 +128,11 @@ class VppController @Inject() (config: MidolmanConfig)
         if (vppProcess eq null) {
             startVppProcess()
         }
+        log debug "vpp setup preparing"
         val setup = new VppSetup(port.interfaceName,
                                  upcallConnManager,
                                  datapathState)
-
+        log debug "vpp setup ready"
         setup.execute() onComplete {
             case Success(_) => watchedPorts += portId -> (port, setup)
             case Failure(err) => setup.rollback()
@@ -155,6 +156,7 @@ class VppController @Inject() (config: MidolmanConfig)
             VppProcessMaximumStarts, VppProcessFailingPeriod, vppExitAction)
         vppProcess.startAsync()
             .awaitRunning(VppProcessFailingPeriod, TimeUnit.MILLISECONDS)
+        log debug "vpp process started"
     }
 
     private def stopVppProcess(): Unit = {

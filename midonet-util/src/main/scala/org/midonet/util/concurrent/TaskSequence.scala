@@ -97,14 +97,14 @@ class TaskSequence(val name: String)(implicit ec: ExecutionContext)
         if (position >=0 && position < steps.size) {
             try {
                 val task = steps(position)
-                logger.trace(s"Sequence $name: $operation ${task.name}")
+                logger.debug(s"Sequence $name: $operation ${task.name}")
                 action(task) recover {
                     case NonFatal(err) =>
                         logger.warn(s"Sequence $name: $operation failed " +
                                  s"${task.name}: $err")
                         throw err
                 } flatMap { _ =>
-                    logger.trace(s"Sequence $name: completed $operation " +
+                    logger.debug(s"Sequence $name: completed $operation " +
                               s"${task.name}")
                     position += delta
                     executeChained(operation, delta, action)
