@@ -130,8 +130,6 @@ class VppSetup(uplinkInterface: String,
     /*
      * setup the tasks, in execution order
      */
-    add(Task("delay", () => Future{ Thread.sleep(10000)},
-             () => Future{}))
     add(uplinkVeth)
     add(uplinkVpp)
     // add(uplinkOvs)
