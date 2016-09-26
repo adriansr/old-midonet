@@ -17,25 +17,29 @@
 package org.midonet.midolman
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Success
 
 import org.midonet.midolman.io.UpcallDatapathConnectionManager
+import org.midonet.midolman.vpp.VppApi
 import org.midonet.netlink.rtnetlink.LinkOps
+import org.midonet.odp.ports.NetDevPort
 import org.midonet.util.concurrent.{Task, TaskSequence}
 
-class VppSetup(uplinkInterface: String,
-               upcallConnManager: UpcallDatapathConnectionManager)
-              (implicit ec: ExecutionContext)
-    extends TaskSequence("VPP setup") {
+object VppSetup {
+
+    trait MacSource {
+        def macAddress: Option[Array[Byte]]
+    }
 
     class VethPairSetup(override val name: String,
                         devName: String,
-                        peerName: String) extends Task {
+                        peerName: String) extends Task with MacSource {
 
-        var macAddress: Option[Array[Byte]] = None
+        override var macAddress: Option[Array[Byte]] = None
 
         @throws[Exception]
-        override def execute(): Future[Any] = Future{
-            val veth = LinkOps.createVethPair(devName, peerName, true)
+        override def execute(): Future[Any] = Future {
+            val veth = LinkOps.createVethPair(devName, peerName, up=true)
             macAddress = Some(veth.dev.mac.getAddress)
         }
 
@@ -46,22 +50,81 @@ class VppSetup(uplinkInterface: String,
     }
 
     class VppDevice(override val name: String,
-                    deviceName: String) extends Task {
+                    deviceName: String,
+                    vppApi: VppApi,
+                    macSource: MacSource) extends Task {
+
+        var interfaceIndex: Option[Int] = None
 
         @throws[Exception]
         override def execute(): Future[Any] = {
-
+            vppApi.createDevice(deviceName, macSource.macAddress)
+                .flatMap { result =>
+                    vppApi.setDeviceAdminState(result.swIfIndex,
+                                               isUp = true)
+                        .map( _ => result.swIfIndex)
+                }
+                .andThen {
+                    case Success(index) => interfaceIndex = Some(index)
+                }
         }
 
         @throws[Exception]
         override def rollback(): Future[Any] = {
-
+            vppApi.deleteDevice(deviceName)
         }
     }
 
-    val uplinkVeth = new VethPairSetup("uplink veth pair",
-                                       "uplink-vpp-" + uplinkInterface,
-                                       "uplink-ovs-" + uplinkInterface)
+    /* TODO
+    class OvsDatapath(override val name: String,
 
-    add(uplinkVethSetup)
+                      sourceDevice: String,
+                      targetDevice: String,
+                      upcallConnManager: UpcallDatapathConnectionManager,
+                      datapathState: DatapathState) extends Task {
+
+        @throws[Exception]
+        override def execute(): Future[Any] = Future {
+            upcallConnManager.createAndHookDpPort(datapathState.datapath,
+                                                  new NetDevPort(targetDevice),
+                                                  sourceDevice)
+        }
+
+        @throws[Exception]
+        override def rollback(): Future[Any] = Future {
+
+        }
+    }*/
+}
+
+class VppSetup(uplinkInterface: String,
+               upcallConnManager: UpcallDatapathConnectionManager,
+               datapathState: DatapathState)
+              (implicit ec: ExecutionContext)
+    extends TaskSequence("VPP setup") {
+
+    import VppSetup._
+
+    val vppApi = new VppApi("midolman")
+
+    val uplinkVppName = "uplink-vpp-" + uplinkInterface
+    val uplinkOvsName = "uplink-ovs-" + uplinkInterface
+
+    val uplinkVeth = new VethPairSetup("uplink veth pair",
+                                       uplinkVppName,
+                                       uplinkOvsName)
+
+    val uplinkVpp = new VppDevice("uplink device at vpp",
+                                  uplinkVppName,
+                                  vppApi,
+                                  uplinkVeth)
+
+    // val uplinkOvs = new OvsDatapath("uplink flow at ovs",...)
+
+    /*
+     * setup the tasks, in execution order
+     */
+    add(uplinkVeth)
+    add(uplinkVpp)
+    // add(uplinkOvs)
 }
