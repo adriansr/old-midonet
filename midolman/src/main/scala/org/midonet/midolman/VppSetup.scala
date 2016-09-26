@@ -33,6 +33,10 @@ object VppSetup {
         def getMac: Option[Array[Byte]]
     }
 
+    trait VppSource {
+        def getVpp: VppApi
+    }
+
     class VethPairSetup(override val name: String,
                         devName: String,
                         peerName: String)
@@ -57,7 +61,7 @@ object VppSetup {
 
     class VppDevice(override val name: String,
                     deviceName: String,
-                    vppApi: VppApi,
+                    vppSource: VppSource,
                     macSource: MacSource)
                    (implicit ec: ExecutionContext)
         extends Task {
@@ -66,6 +70,7 @@ object VppSetup {
 
         @throws[Exception]
         override def execute(): Future[Any] = {
+            val vppApi = vppSource.getVpp
             vppApi.createDevice(deviceName, macSource.getMac)
                 .flatMap[Int] { result =>
                     vppApi.setDeviceAdminState(result.swIfIndex,
@@ -78,6 +83,7 @@ object VppSetup {
 
         @throws[Exception]
         override def rollback(): Future[Any] = {
+            val vppApi = vppSource.getVpp
             vppApi.deleteDevice(deviceName)
         }
     }
@@ -112,8 +118,6 @@ class VppSetup(uplinkInterface: String,
 
     import VppSetup._
 
-    var vppApi: VppApi = null //new VppApi("midolman")
-
     val uplinkVppName = "uplink-vpp-" + uplinkInterface
     val uplinkOvsName = "uplink-ovs-" + uplinkInterface
 
@@ -123,12 +127,16 @@ class VppSetup(uplinkInterface: String,
 
     val uplinkVpp = new VppDevice("uplink device at vpp",
                                   uplinkVppName,
-                                  vppApi,
+                                  vppConnect,
                                   uplinkVeth)
 
-    object vppConnect extends Task {
+    object vppConnect extends Task with VppSource {
 
         override def name: String = "vpp connect"
+
+        var vppApi: VppApi = _
+
+        override def getVpp: VppApi = vppApi
 
         @throws[Exception]
         override def execute(): Future[Any] = Future {
