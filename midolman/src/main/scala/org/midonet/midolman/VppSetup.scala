@@ -33,7 +33,9 @@ object VppSetup {
 
     class VethPairSetup(override val name: String,
                         devName: String,
-                        peerName: String) extends Task with MacSource {
+                        peerName: String)
+                       (implicit ec: ExecutionContext)
+        extends Task with MacSource {
 
         override var macAddress: Option[Array[Byte]] = None
 
@@ -52,7 +54,9 @@ object VppSetup {
     class VppDevice(override val name: String,
                     deviceName: String,
                     vppApi: VppApi,
-                    macSource: MacSource) extends Task {
+                    macSource: MacSource)
+                   (implicit ec: ExecutionContext)
+        extends Task {
 
         var interfaceIndex: Option[Int] = None
 
