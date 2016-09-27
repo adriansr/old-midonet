@@ -26,15 +26,15 @@ import org.scalatest.{FeatureSpec, Matchers}
 import org.scalatest.junit.JUnitRunner
 
 @RunWith(classOf[JUnitRunner])
-class TaskSequenceTest extends FeatureSpec
-                           with Matchers {
+class FutureSequenceWithRollbackTest extends FeatureSpec
+                                             with Matchers {
 
     val Timeout = Duration.Inf
 
     feature("Successful execution and complete rollback") {
         scenario("single task") {
-            val exec = new TaskSequence("test sequence")
-            val task = Mockito.mock(classOf[Task])
+            val exec = new FutureSequenceWithRollback("test sequence")
+            val task = Mockito.mock(classOf[FutureTaskWithRollback])
             Mockito.when(task.execute()).thenReturn(Future.successful(true))
             Mockito.when(task.rollback()).thenReturn(Future.successful(true))
             exec.add(task)
@@ -50,10 +50,10 @@ class TaskSequenceTest extends FeatureSpec
         }
 
         scenario("multiple tasks") {
-            val exec = new TaskSequence("test sequence")
+            val exec = new FutureSequenceWithRollback("test sequence")
             val Count = 5
             val tasks = for (i <- 0 to Count) yield {
-                val task = Mockito.mock(classOf[Task])
+                val task = Mockito.mock(classOf[FutureTaskWithRollback])
                 Mockito.when(task.execute()).thenReturn(Future.successful(true))
                 Mockito.when(task.rollback())
                     .thenReturn(Future.successful(true))
@@ -73,7 +73,7 @@ class TaskSequenceTest extends FeatureSpec
         }
 
         scenario("no tasks") {
-            val exec = new TaskSequence("test sequence")
+            val exec = new FutureSequenceWithRollback("test sequence")
 
             Await.result(exec.execute(), Timeout)
 
@@ -83,9 +83,9 @@ class TaskSequenceTest extends FeatureSpec
 
     feature("Failure rollback") {
         def runWithFailedTask(failurePos: Int, count: Int): Unit = {
-            val exec = new TaskSequence("test sequence")
+            val exec = new FutureSequenceWithRollback("test sequence")
             val tasks = for (i <- 0 to count) yield {
-                val task = Mockito.mock(classOf[Task])
+                val task = Mockito.mock(classOf[FutureTaskWithRollback])
                 if (i != failurePos) {
                     Mockito.when(task.execute())
                         .thenReturn(Future.successful(true))
@@ -149,10 +149,10 @@ class TaskSequenceTest extends FeatureSpec
     feature("TaskSequence can be reused") {
 
         scenario("Multiple successful executions") {
-            val exec = new TaskSequence("test sequence")
+            val exec = new FutureSequenceWithRollback("test sequence")
             val NumTasks = 5
             val tasks = for (i <- 0 to NumTasks) yield {
-                val task = Mockito.mock(classOf[Task])
+                val task = Mockito.mock(classOf[FutureTaskWithRollback])
                 Mockito.when(task.execute()).thenReturn(Future.successful(true))
                 Mockito.when(task.rollback())
                     .thenReturn(Future.successful(true))
@@ -167,10 +167,10 @@ class TaskSequenceTest extends FeatureSpec
         }
 
         scenario("Execution after failure") {
-            val exec = new TaskSequence("test sequence")
+            val exec = new FutureSequenceWithRollback("test sequence")
             val NumTasks = 5
             val tasks = for (i <- 0 to NumTasks) yield {
-                val task = Mockito.mock(classOf[Task])
+                val task = Mockito.mock(classOf[FutureTaskWithRollback])
                 Mockito.when(task.execute()).thenReturn(Future.successful(true))
                 Mockito.when(task.rollback())
                     .thenReturn(Future.successful(true))

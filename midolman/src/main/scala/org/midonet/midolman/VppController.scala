@@ -128,11 +128,9 @@ class VppController @Inject() (config: MidolmanConfig)
         if (vppProcess eq null) {
             startVppProcess()
         }
-        log debug "vpp setup preparing"
         val setup = new VppSetup(port.interfaceName,
                                  upcallConnManager,
                                  datapathState)
-        log debug "vpp setup ready"
         setup.execute() onComplete {
             case Success(_) => watchedPorts += portId -> (port, setup)
             case Failure(err) => setup.rollback()
@@ -141,9 +139,9 @@ class VppController @Inject() (config: MidolmanConfig)
 
     private def detachPort(portId: UUID): Unit = {
         watchedPorts remove portId match {
-            case Some(portInfo) =>
+            case Some(entry) =>
                 log debug s"IPv6 port $portId detached"
-                portInfo._2.rollback()
+                entry._2.rollback()
             case None =>
         }
     }

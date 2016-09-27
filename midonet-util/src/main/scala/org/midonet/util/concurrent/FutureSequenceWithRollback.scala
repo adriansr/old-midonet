@@ -26,7 +26,7 @@ import org.midonet.util.logging.Logging
   * TaskSequence
   */
 
-trait Task {
+trait FutureTaskWithRollback {
     def name: String
 
     @throws[Exception]
@@ -36,25 +36,27 @@ trait Task {
     def rollback(): Future[Any]
 }
 
-object Task {
+object FutureTaskWithRollback {
     def apply(taskName: String,
               executeCallback: () => Future[Any],
-              undoCallback: () => Future[Any]): Task = new Task {
-        override val name: String = taskName
-        override def execute() = executeCallback()
-        override def rollback() = undoCallback()
-    }
+              undoCallback: () => Future[Any]): FutureTaskWithRollback =
+        new FutureTaskWithRollback {
+            override val name: String = taskName
+            override def execute() = executeCallback()
+            override def rollback() = undoCallback()
+        }
 }
 
-class TaskSequence(val name: String)(implicit ec: ExecutionContext)
-    extends Task
+class FutureSequenceWithRollback(val name: String)
+                                (implicit ec: ExecutionContext)
+    extends FutureTaskWithRollback
             with Logging {
 
     private val logger = log.underlying
-    private val steps = ArrayBuffer.empty[Task]
+    private val steps = ArrayBuffer.empty[FutureTaskWithRollback]
     private var position = 0
 
-    def add(task: Task): Unit = steps += task
+    def add(task: FutureTaskWithRollback): Unit = steps += task
 
     override def execute(): Future[Any] = {
         position = 0
@@ -73,7 +75,8 @@ class TaskSequence(val name: String)(implicit ec: ExecutionContext)
 
     private def executeOp(operation: String,
                           delta: Int,
-                          action: Task => Future[Any]): Future[Any] = {
+                          action: FutureTaskWithRollback => Future[Any])
+    : Future[Any] = {
         if (steps.nonEmpty) {
             logger.debug(s"Started to $operation $name")
             val promise = Promise[Unit]
@@ -93,7 +96,8 @@ class TaskSequence(val name: String)(implicit ec: ExecutionContext)
 
     private def executeChained(operation: String,
                                delta: Int,
-                               action: Task => Future[Any]): Future[Any] = {
+                               action: FutureTaskWithRollback => Future[Any])
+    : Future[Any] = {
         if (position >=0 && position < steps.size) {
             try {
                 val task = steps(position)
